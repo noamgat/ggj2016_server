@@ -41,6 +41,7 @@ class GameBackend(object):
     def register(self, client):
         """Register a WebSocket connection for Redis updates."""
         if len(self.clients) == 0:
+            app.logger.info("Creating new room")
             pattern = open("levels/level1.json").read()
             pattern = json.loads(pattern)
             pattern = PatternModel(pattern)
@@ -94,6 +95,7 @@ def hello():
 @sockets.route('/room')
 def inbox(ws):
     """Receives incoming chat messages, inserts them into Redis."""
+    app.logger.info("Start of room route")
     game.register(ws)
     while not ws.closed:
         # Sleep to prevent *contstant* context-switches.
@@ -104,6 +106,7 @@ def inbox(ws):
             app.logger.info(u'Inserting message: {}'.format(message))
             game.enqueue(ws, message)
     game.unregister(ws)
+    app.logger.info("End of room route")
 
 
 

@@ -60,7 +60,7 @@ class GameRoom(object):
             self.send_func(client, message)
 
     def handle_client_message(self, client, message):
-        message = json.loads(message)
+        message = json.loads(str(message))
         if message["action"] == "fill":
             edge_id = message["data"]["edge_id"]
             self._handle_client_filled_edge(client, edge_id)
