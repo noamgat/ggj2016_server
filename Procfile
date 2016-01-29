@@ -1,1 +1,1 @@
-web: gunicorn -k flask_sockets.worker game:app
+web: python run_gevent_server.py -k gevent
