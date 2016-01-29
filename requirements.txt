@@ -8,5 +8,7 @@ gevent-websocket==0.9.5
 greenlet==0.4.1
 gunicorn==19.4.5
 itsdangerous==0.24
+schematics==1.1.1
+six==1.10.0
 wsgiref==0.1.2
 distribute==0.6.34
