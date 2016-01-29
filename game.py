@@ -18,6 +18,12 @@ app.debug = 'DEBUG' in os.environ
 
 sockets = Sockets(app)
 
+@app.before_first_request
+def setup_logging():
+    if not app.debug:
+        # In production mode, add log handler to sys.stderr.
+        app.logger.addHandler(logging.StreamHandler())
+        app.logger.setLevel(logging.DEBUG)
 
 
 class GameBackend(object):
@@ -42,10 +48,13 @@ class GameBackend(object):
 
     def run(self):
         """Listens for new messages in Redis, and sends them to clients."""
-        for data in self.message_queue:
-            for client in self.clients:
-                gevent.spawn(self.send, client, data)
-        gevent.sleep(0.01)
+        while True:
+            messages_copy = self.message_queue[:]
+            self.message_queue = []
+            for data in messages_copy:
+                for client in self.clients:
+                    gevent.spawn(self.send, client, data)
+            gevent.sleep(0.01)
 
     def start(self):
         """Maintains Redis subscription in the background."""
@@ -64,6 +73,7 @@ def hello():
     app.logger.info("Hello")
     return render_template('index.html')
 
+
 @sockets.route('/submit')
 def inbox(ws):
     """Receives incoming chat messages, inserts them into Redis."""
@@ -71,10 +81,11 @@ def inbox(ws):
         # Sleep to prevent *contstant* context-switches.
         gevent.sleep(0.1)
         message = ws.receive()
-        app.logger.debug("HI")
+        # app.logger.debug("HI")
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
             game.enqueue(message)
+
 
 @sockets.route('/receive')
 def outbox(ws):
