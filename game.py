@@ -6,12 +6,15 @@ Chat Server
 
 This simple application uses WebSockets to run a primitive chat server.
 """
+import json
 
 import os
 import logging
 import gevent
 from flask import Flask, render_template
 from flask_sockets import Sockets
+from game_types import PatternModel
+from gameroom import GameRoom
 
 app = Flask(__name__)
 app.debug = 'DEBUG' in os.environ
@@ -32,12 +35,24 @@ class GameBackend(object):
     def __init__(self):
         self.clients = list()
         self.message_queue = list()
+        self.game_room = None
+        """:type GameRoom"""
 
     def register(self, client):
         """Register a WebSocket connection for Redis updates."""
+        if len(self.clients) == 0:
+            pattern = open("levels/level1.json").read()
+            pattern = json.loads(pattern)
+            pattern = PatternModel(pattern)
+            self.game_room = GameRoom(pattern, 2, self.send)
         self.clients.append(client)
+        self.game_room.add_player(client)
 
-    def send(self, client, data):
+    def unregister(self, client):
+        self.clients.remove(client)
+        self.game_room.remove_player(client)
+
+    def _send_impl(self, client, data):
         """Send given data to the registered client.
         Automatically discards invalid connections."""
         try:
@@ -46,22 +61,24 @@ class GameBackend(object):
             app.logger.info("Client disconnected: " + e.message)
             self.clients.remove(client)
 
+    def send(self, client, data):
+        gevent.spawn(self._send_impl, client, data)
+
     def run(self):
-        """Listens for new messages in Redis, and sends them to clients."""
+        """Listens for new messages in queue, and sends them to game room."""
         while True:
             messages_copy = self.message_queue[:]
             self.message_queue = []
-            for data in messages_copy:
-                for client in self.clients:
-                    gevent.spawn(self.send, client, data)
+            for client, message in messages_copy:
+                self.game_room.handle_client_message(client, message)
             gevent.sleep(0.01)
 
     def start(self):
-        """Maintains Redis subscription in the background."""
+        """Maintains queue subscription in the background."""
         gevent.spawn(self.run)
 
-    def enqueue(self, message):
-        self.message_queue.append(message)
+    def enqueue(self, client, message):
+        self.message_queue.append((client, message))
 
 
 game = GameBackend()
@@ -74,9 +91,10 @@ def hello():
     return render_template('index.html')
 
 
-@sockets.route('/submit')
+@sockets.route('/room')
 def inbox(ws):
     """Receives incoming chat messages, inserts them into Redis."""
+    game.register(ws)
     while not ws.closed:
         # Sleep to prevent *contstant* context-switches.
         gevent.sleep(0.1)
@@ -84,17 +102,9 @@ def inbox(ws):
         # app.logger.debug("HI")
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
-            game.enqueue(message)
+            game.enqueue(ws, message)
+    game.unregister(ws)
 
-
-@sockets.route('/receive')
-def outbox(ws):
-    """Sends outgoing chat messages, via `ChatBackend`."""
-    game.register(ws)
-
-    while not ws.closed:
-        # Context switch while `ChatBackend.start` is running in the background.
-        gevent.sleep()
 
 
 
