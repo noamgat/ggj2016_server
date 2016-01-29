@@ -9,36 +9,23 @@ This simple application uses WebSockets to run a primitive chat server.
 
 import os
 import logging
-import redis
 import gevent
 from flask import Flask, render_template
 from flask_sockets import Sockets
-
-REDIS_URL = os.environ['REDISCLOUD_URL']
-REDIS_CHAN = 'chat'
 
 app = Flask(__name__)
 app.debug = 'DEBUG' in os.environ
 
 sockets = Sockets(app)
-redis = redis.from_url(REDIS_URL)
 
 
 
-class ChatBackend(object):
+class GameBackend(object):
     """Interface for registering and updating WebSocket clients."""
 
     def __init__(self):
         self.clients = list()
-        self.pubsub = redis.pubsub()
-        self.pubsub.subscribe(REDIS_CHAN)
-
-    def __iter_data(self):
-        for message in self.pubsub.listen():
-            data = message.get('data')
-            if message['type'] == 'message':
-                app.logger.info(u'Sending message: {}'.format(data))
-                yield data
+        self.message_queue = list()
 
     def register(self, client):
         """Register a WebSocket connection for Redis updates."""
@@ -49,21 +36,27 @@ class ChatBackend(object):
         Automatically discards invalid connections."""
         try:
             client.send(data)
-        except Exception:
+        except Exception, e:
+            logging.info("Client disconnected: " + e.message)
             self.clients.remove(client)
 
     def run(self):
         """Listens for new messages in Redis, and sends them to clients."""
-        for data in self.__iter_data():
+        for data in self.message_queue:
             for client in self.clients:
                 gevent.spawn(self.send, client, data)
+        gevent.sleep(0.01)
 
     def start(self):
         """Maintains Redis subscription in the background."""
         gevent.spawn(self.run)
 
-chats = ChatBackend()
-chats.start()
+    def enqueue(self, message):
+        self.message_queue.append(message)
+
+
+game = GameBackend()
+game.start()
 
 
 @app.route('/')
@@ -80,12 +73,12 @@ def inbox(ws):
 
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
-            redis.publish(REDIS_CHAN, message)
+            game.enqueue(message)
 
 @sockets.route('/receive')
 def outbox(ws):
     """Sends outgoing chat messages, via `ChatBackend`."""
-    chats.register(ws)
+    game.register(ws)
 
     while ws.socket is not None:
         # Context switch while `ChatBackend.start` is running in the background.
