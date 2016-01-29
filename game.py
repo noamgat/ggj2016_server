@@ -37,7 +37,7 @@ class GameBackend(object):
         try:
             client.send(data)
         except Exception, e:
-            logging.info("Client disconnected: " + e.message)
+            app.logger.info("Client disconnected: " + e.message)
             self.clients.remove(client)
 
     def run(self):
@@ -61,16 +61,17 @@ game.start()
 
 @app.route('/')
 def hello():
+    app.logger.info("Hello")
     return render_template('index.html')
 
 @sockets.route('/submit')
 def inbox(ws):
     """Receives incoming chat messages, inserts them into Redis."""
-    while ws.socket is not None:
+    while not ws.closed:
         # Sleep to prevent *contstant* context-switches.
         gevent.sleep(0.1)
         message = ws.receive()
-
+        app.logger.debug("HI")
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
             game.enqueue(message)
@@ -80,7 +81,7 @@ def outbox(ws):
     """Sends outgoing chat messages, via `ChatBackend`."""
     game.register(ws)
 
-    while ws.socket is not None:
+    while not ws.closed:
         # Context switch while `ChatBackend.start` is running in the background.
         gevent.sleep()
 
