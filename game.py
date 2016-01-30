@@ -118,12 +118,13 @@ def inbox(ws):
     game.register(ws)
     while not ws.closed:
         # Sleep to prevent *contstant* context-switches.
-        gevent.sleep(0.1)
         message = ws.receive()
         # app.logger.debug("HI")
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
             game.enqueue(ws, message)
+        else:
+            gevent.sleep(0.01)
     game.unregister(ws)
     app.logger.info("End of room route")
 
