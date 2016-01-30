@@ -1,5 +1,6 @@
 import os
 import unittest
+from game import load_level, get_level_names
 from game_types import PatternModel
 import json
 from gameroom import GameRoom
@@ -25,7 +26,34 @@ class Tests(unittest.TestCase):
 
     def test_simple_game(self):
         level = self._load_level("levels/level1.json")
-        game_room = GameRoom(level, 2, self._send_func)
+        game_room = GameRoom([level], 2, self._send_func)
         game_room.add_player(1)
         game_room.add_player(2)
-        game_room.handle_client_message(1, json.dumps({"action": "fill", "data": {"edge_id": 0}}))
+        game_room.handle_client_message(1, json.dumps({"action": "start"}))
+        for i in xrange(len(level.edges)):
+            game_room.handle_client_message(1, json.dumps({"action": "fill", "data": {"edge_id": i}}))
+
+    def test_disconnect_before_start(self):
+        level = self._load_level("levels/level1.json")
+        game_room = GameRoom([level], 2, self._send_func)
+        game_room.add_player(1)
+        game_room.add_player(2)
+        game_room.add_player(3)
+        game_room.remove_player(1)
+        game_room.add_player(4)
+        game_room.handle_client_message(2, json.dumps({"action": "start"}))
+        for i in xrange(len(level.edges)):
+            game_room.handle_client_message(4, json.dumps({"action": "fill", "data": {"edge_id": i}}))
+
+    def test_multiple_levels(self):
+        levels = [load_level(fn) for fn in get_level_names()]
+        game_room = GameRoom(levels, 2, self._send_func)
+        game_room.add_player(1)
+        game_room.add_player(2)
+        game_room.handle_client_message(1, json.dumps({"action": "start"}))
+        for level in levels:
+            for i in xrange(len(level.edges)):
+                game_room.handle_client_message(1, json.dumps({"action": "fill", "data": {"edge_id": i}}))
+        self.assertFalse(game_room.is_room_active)
+
+

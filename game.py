@@ -21,6 +21,17 @@ app.debug = 'DEBUG' in os.environ
 
 sockets = Sockets(app)
 
+
+def load_level(fn):
+    pattern = open(fn).read()
+    pattern = json.loads(pattern)
+    pattern = PatternModel(pattern)
+    return pattern
+
+
+def get_level_names():
+    return ["levels/" + fn for fn in os.listdir('levels')]
+
 @app.before_first_request
 def setup_logging():
     if not app.debug:
@@ -39,13 +50,11 @@ class GameBackend(object):
         """:type GameRoom"""
 
     def register(self, client):
-        """Register a WebSocket connection for Redis updates."""
-        if len(self.clients) == 0:
+        """Register a WebSocket connection for the game."""
+        if len(self.clients) == 0 or self.game_room.did_game_start:
             app.logger.info("Creating new room")
-            pattern = open("levels/level1.json").read()
-            pattern = json.loads(pattern)
-            pattern = PatternModel(pattern)
-            self.game_room = GameRoom(pattern, 2, self.send)
+            patterns = [load_level(fn) for fn in get_level_names()]
+            self.game_room = GameRoom(patterns, 2, self.send)
         self.clients.append(client)
         self.game_room.add_player(client)
 

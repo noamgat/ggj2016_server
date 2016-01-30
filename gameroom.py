@@ -5,20 +5,24 @@ __author__ = 'noam'
 
 from time import time
 
+MAX_PLAYERS_PER_ROOM = 4
+
 
 class GameRoom(object):
-    def __init__(self, pattern, fade_time, send_func):
+    def __init__(self, patterns, fade_time, send_func):
         """
         @type pattern: PatternModel
         """
-        self.pattern = pattern
+        self.patterns = patterns
+        self.current_level_index = -1
+        self.pattern = patterns[0]
 
         self.player_id_to_client = {}
-        self.last_edge_fill_times = [0] * len(pattern.edges)
+        self.last_edge_fill_times = [0]
         self.fade_time = fade_time
-        self.num_players = 0
         self.send_func = send_func
         self.did_send_win_message = False
+        self.did_complete_game = False
 
     def get_player_id(self, client):
         for player_id in self.player_id_to_client:
@@ -26,24 +30,48 @@ class GameRoom(object):
                 return player_id
         raise Exception("Could not find player id")
 
+    @property
+    def did_game_start(self):
+        return self.current_level_index >= 0
+
+    @property
+    def num_players(self):
+        return len(self.player_id_to_client)
+
     def add_player(self, client):
-        self.num_players += 1
-        player_id = self.num_players
+        player_id = 1
+        while self.player_id_to_client.has_key(player_id):
+            player_id += 1
         self.player_id_to_client[player_id] = client
-        self.send_message("load", {"player_id": player_id, "pattern": self.pattern.to_primitive()}, client)
+        self.send_message("load", {"player_id": player_id}, client)
+        self._broadcast_num_players_changed()
+        if not self.did_game_start and self.num_players == MAX_PLAYERS_PER_ROOM:
+            self._start_next_level()
 
     def remove_player(self, client):
-        player_id = self.get_player_id(client)
-        self.player_id_to_client.pop(player_id)
+        try:
+            player_id = self.get_player_id(client)
+            self.player_id_to_client.pop(player_id)
+            self._broadcast_num_players_changed()
+        except Exception, e:
+            #This is not the room that the client was in
+            pass
+
+    def _broadcast_num_players_changed(self):
+        self.send_message("num_players_changed", {"num_players": self.num_players})
 
     def _handle_client_filled_edge(self, client, edge_id):
+        if not self.did_game_start:
+            return
         player_id = self.get_player_id(client)
         self.last_edge_fill_times[edge_id] = time()
         self.send_message("fill", {"player_id": player_id, "edge_id": edge_id})
-        if not self.did_send_win_message and self.did_win():
-            self.send_message("win")
+        if self.did_win_current_level:
+            self.send_message("win_level")
+            self._start_next_level()
 
-    def did_win(self):
+    @property
+    def did_win_current_level(self):
         max_fill_time = time() - self.fade_time
         for fill_time in self.last_edge_fill_times:
             if fill_time < max_fill_time:
@@ -64,3 +92,21 @@ class GameRoom(object):
         if message["action"] == "fill":
             edge_id = message["data"]["edge_id"]
             self._handle_client_filled_edge(client, edge_id)
+        if message["action"] == "start":
+            if not self.did_game_start and self.num_players > 1:
+                self._start_next_level()
+
+    def _start_next_level(self):
+        if self.current_level_index == len(self.patterns) - 1:
+            self.did_complete_game = True
+            self.send_message("complete")
+            self.pattern = None
+        else:
+            self.current_level_index += 1
+            self.pattern = self.patterns[self.current_level_index]
+            self.last_edge_fill_times = [0] * len(self.pattern.edges)
+            self.send_message("start", {"pattern": self.pattern.to_primitive()})
+
+    @property
+    def is_room_active(self):
+        return self.num_players > 0 and not self.did_complete_game
