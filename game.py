@@ -61,8 +61,9 @@ class GameBackend(object):
         self.clients_to_rooms[client] = self.pickup_game_room
 
     def unregister(self, client):
-        self.clients_to_rooms[client].remove_player(client)
-        self.clients_to_rooms.pop(client)
+        if client in self.clients_to_rooms:
+            self.clients_to_rooms[client].remove_player(client)
+            self.clients_to_rooms.pop(client)
 
     def _send_impl(self, client, data):
         """Send given data to the registered client.
