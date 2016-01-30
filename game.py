@@ -44,23 +44,25 @@ class GameBackend(object):
     """Interface for registering and updating WebSocket clients."""
 
     def __init__(self):
-        self.clients = list()
         self.message_queue = list()
-        self.game_room = None
+        self.pickup_game_room = None
         """:type GameRoom"""
+        self.game_rooms = []
+        self.clients_to_rooms = {}
 
     def register(self, client):
         """Register a WebSocket connection for the game."""
-        if len(self.clients) == 0 or self.game_room.did_game_start:
+        if self.pickup_game_room is None or self.pickup_game_room.did_game_start:
             app.logger.info("Creating new room")
             patterns = [load_level(fn) for fn in get_level_names()]
-            self.game_room = GameRoom(patterns, 2, self.send)
-        self.clients.append(client)
-        self.game_room.add_player(client)
+            self.pickup_game_room = GameRoom(patterns, 2, self.send)
+            self.game_rooms.append(self.pickup_game_room)
+        self.pickup_game_room.add_player(client)
+        self.clients_to_rooms[client] = self.pickup_game_room
 
     def unregister(self, client):
-        self.clients.remove(client)
-        self.game_room.remove_player(client)
+        self.clients_to_rooms[client].remove_player(client)
+        self.clients_to_rooms.pop(client)
 
     def _send_impl(self, client, data):
         """Send given data to the registered client.
@@ -69,7 +71,7 @@ class GameBackend(object):
             client.send(data)
         except Exception, e:
             app.logger.info("Client disconnected: " + e.message)
-            self.clients.remove(client)
+            self.unregister(client)
 
     def send(self, client, data):
         gevent.spawn(self._send_impl, client, data)
@@ -80,7 +82,15 @@ class GameBackend(object):
             messages_copy = self.message_queue[:]
             self.message_queue = []
             for client, message in messages_copy:
-                self.game_room.handle_client_message(client, message)
+                self.clients_to_rooms[client].handle_client_message(client, message)
+
+            rooms_to_remove = []
+            for room in self.game_rooms:
+                room.update()
+                if not room.is_room_active:
+                    rooms_to_remove.append(room)
+            for room in rooms_to_remove:
+                self.game_rooms.remove(room)
             gevent.sleep(0.01)
 
     def start(self):

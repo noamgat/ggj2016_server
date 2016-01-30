@@ -43,7 +43,7 @@ class GameRoom(object):
         while self.player_id_to_client.has_key(player_id):
             player_id += 1
         self.player_id_to_client[player_id] = client
-        self.send_message("load", {"player_id": player_id}, client)
+        self.send_message("connect", {"player_id": player_id}, client)
         self._broadcast_num_players_changed()
         if not self.did_game_start and self.num_players == MAX_PLAYERS_PER_ROOM:
             self._start_next_level()
@@ -93,7 +93,7 @@ class GameRoom(object):
             edge_id = message["data"]["edge_id"]
             self._handle_client_filled_edge(client, edge_id)
         if message["action"] == "start":
-            if not self.did_game_start and self.num_players > 1:
+            if not self.did_game_start and self.num_players > 0:
                 self._start_next_level()
 
     def _start_next_level(self):
@@ -110,3 +110,6 @@ class GameRoom(object):
     @property
     def is_room_active(self):
         return self.num_players > 0 and not self.did_complete_game
+
+    def update(self):
+        pass
