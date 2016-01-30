@@ -37,6 +37,7 @@ class Tests(unittest.TestCase):
         game_room.remove_player(1)
         game_room.add_player(4)
         game_room.handle_client_message(2, json.dumps({"action": "start"}))
+        game_room.handle_client_message(2, json.dumps({"action": "start_level"}))
         for i in xrange(len(level.edges)):
             game_room.handle_client_message(4, json.dumps({"action": "fill", "data": {"edge_id": i}}))
 
@@ -47,8 +48,10 @@ class Tests(unittest.TestCase):
         game_room.add_player(2)
         game_room.handle_client_message(1, json.dumps({"action": "start"}))
         for level in levels:
+            game_room.handle_client_message(2, json.dumps({"action": "start_level"}))
             for i in xrange(len(level.edges)):
                 game_room.handle_client_message(1, json.dumps({"action": "fill", "data": {"edge_id": i}}))
+        game_room.handle_client_message(2, json.dumps({"action": "start_level"}))
         self.assertFalse(game_room.is_room_active)
 
     def test_lose_level(self):
@@ -57,6 +60,7 @@ class Tests(unittest.TestCase):
         game_room.add_player(1)
         game_room.add_player(2)
         game_room.handle_client_message(1, json.dumps({"action": "start"}))
+        game_room.handle_client_message(2, json.dumps({"action": "start_level"}))
         game_room.update()
         self.assertTrue(game_room.is_in_level)
         from time import sleep

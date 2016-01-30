@@ -25,6 +25,7 @@ class GameRoom(object):
         self.send_func = send_func
         self.did_send_win_message = False
         self.did_complete_game = False
+        self.did_room_start = False
 
     def get_player_id(self, client):
         for player_id in self.player_id_to_client:
@@ -32,9 +33,10 @@ class GameRoom(object):
                 return player_id
         raise Exception("Could not find player id")
 
-    @property
-    def did_game_start(self):
-        return self.current_level_index >= 0
+    def start_room(self):
+        if not self.did_room_start:
+            self.did_room_start = True
+            self.send_message("start_game")
 
     @property
     def num_players(self):
@@ -47,8 +49,8 @@ class GameRoom(object):
         self.player_id_to_client[player_id] = client
         self.send_message("connect", {"player_id": player_id}, client)
         self._broadcast_num_players_changed()
-        if not self.did_game_start and self.num_players == MAX_PLAYERS_PER_ROOM:
-            self._start_next_level()
+        if not self.did_room_start and self.num_players == MAX_PLAYERS_PER_ROOM:
+            self.start_room()
 
     def remove_player(self, client):
         try:
@@ -71,7 +73,6 @@ class GameRoom(object):
         if self.did_win_current_level:
             self.send_message("win_level")
             self.level_start_time = 0
-            self._start_next_level()
 
     @property
     def did_win_current_level(self):
@@ -96,7 +97,10 @@ class GameRoom(object):
             edge_id = message["data"]["edge_id"]
             self._handle_client_filled_edge(client, edge_id)
         if message["action"] == "start":
-            if not self.did_game_start and self.num_players > 0:
+            if not self.did_room_start and self.num_players > 0:
+                self.start_room()
+        if message["action"] == "start_level":
+            if self.did_room_start and not self.is_in_level:
                 self._start_next_level()
 
     def _start_next_level(self):
@@ -108,7 +112,7 @@ class GameRoom(object):
             self.current_level_index += 1
             self.pattern = self.patterns[self.current_level_index]
             self.last_edge_fill_times = [0] * len(self.pattern.edges)
-            self.send_message("start", {"pattern": self.pattern.to_primitive()})
+            self.send_message("start_level", {"pattern": self.pattern.to_primitive()})
             self.level_start_time = time()
 
     @property
@@ -117,12 +121,10 @@ class GameRoom(object):
 
     @property
     def is_in_level(self):
-        return self.did_game_start and not self.did_complete_game and self.level_start_time > 0
+        return self.did_room_start and not self.did_complete_game and self.level_start_time > 0
 
     def update(self):
         if self.is_in_level and time() > self.level_start_time + self.seconds_per_level:
             self.send_message("lose_level")
             self.level_start_time = 0
-            self.current_level_index -= 1
-            # TODO: Delay this call
-            self._start_next_level()
+            self.current_level_index = -1
