@@ -9,13 +9,15 @@ MAX_PLAYERS_PER_ROOM = 4
 
 
 class GameRoom(object):
-    def __init__(self, patterns, fade_time, send_func):
+    def __init__(self, patterns, fade_time, send_func, seconds_per_level=30):
         """
         @type pattern: PatternModel
         """
         self.patterns = patterns
         self.current_level_index = -1
         self.pattern = patterns[0]
+        self.seconds_per_level = seconds_per_level
+        self.level_start_time = 0
 
         self.player_id_to_client = {}
         self.last_edge_fill_times = [0]
@@ -61,13 +63,14 @@ class GameRoom(object):
         self.send_message("num_players_changed", {"num_players": self.num_players})
 
     def _handle_client_filled_edge(self, client, edge_id):
-        if not self.did_game_start:
+        if not self.is_in_level:
             return
         player_id = self.get_player_id(client)
         self.last_edge_fill_times[edge_id] = time()
         self.send_message("fill", {"player_id": player_id, "edge_id": edge_id})
         if self.did_win_current_level:
             self.send_message("win_level")
+            self.level_start_time = 0
             self._start_next_level()
 
     @property
@@ -106,10 +109,20 @@ class GameRoom(object):
             self.pattern = self.patterns[self.current_level_index]
             self.last_edge_fill_times = [0] * len(self.pattern.edges)
             self.send_message("start", {"pattern": self.pattern.to_primitive()})
+            self.level_start_time = time()
 
     @property
     def is_room_active(self):
         return self.num_players > 0 and not self.did_complete_game
 
+    @property
+    def is_in_level(self):
+        return self.did_game_start and not self.did_complete_game and self.level_start_time > 0
+
     def update(self):
-        pass
+        if self.is_in_level and time() > self.level_start_time + self.seconds_per_level:
+            self.send_message("lose_level")
+            self.level_start_time = 0
+            self.current_level_index -= 1
+            # TODO: Delay this call
+            self._start_next_level()
