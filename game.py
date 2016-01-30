@@ -30,7 +30,7 @@ def load_level(fn):
 
 
 def get_level_names():
-    return ["levels/" + fn for fn in os.listdir('levels')]
+    return sorted(["levels/" + fn for fn in os.listdir('levels') if fn.endswith(".json")])
 
 @app.before_first_request
 def setup_logging():
