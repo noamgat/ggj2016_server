@@ -76,11 +76,14 @@ class GameRoom(object):
 
     @property
     def did_win_current_level(self):
+        num_edges = float(len(self.last_edge_fill_times))
+        num_good_edges = 0
         max_fill_time = time() - self.fade_time
         for fill_time in self.last_edge_fill_times:
-            if fill_time < max_fill_time:
-                return False
-        return True
+            if fill_time >= max_fill_time:
+                num_good_edges += 1
+        relative_good_edges = num_good_edges / num_edges
+        return relative_good_edges > 0.9
 
     def send_message(self, action, data=None, client=None):
         message = {"action": action}
