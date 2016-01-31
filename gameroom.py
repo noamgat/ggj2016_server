@@ -68,6 +68,8 @@ class GameRoom(object):
     def _handle_client_filled_edge(self, client, edge_id):
         if not self.is_in_level:
             return
+        if edge_id < 0 or edge_id >= len(self.pattern.edges):
+            return
         player_id = self.get_player_id(client)
         self.last_edge_fill_times[edge_id] = time()
         self.send_message("fill", {"player_id": player_id, "edge_id": edge_id})
