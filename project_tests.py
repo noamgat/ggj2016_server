@@ -56,7 +56,7 @@ class Tests(unittest.TestCase):
 
     def test_lose_level(self):
         level = load_level("levels/level1.json")
-        game_room = GameRoom([level], 2, self._send_func, 2)
+        game_room = GameRoom([level], 2, self._send_func, 2, 3)
         game_room.add_player(1)
         game_room.add_player(2)
         game_room.handle_client_message(1, json.dumps({"action": "start"}))

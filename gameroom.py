@@ -9,7 +9,7 @@ MAX_PLAYERS_PER_ROOM = 4
 
 
 class GameRoom(object):
-    def __init__(self, patterns, fade_time, send_func, seconds_per_level=30):
+    def __init__(self, patterns, fade_time, send_func, seconds_per_level=30, room_id=0):
         """
         @type pattern: PatternModel
         """
@@ -26,6 +26,7 @@ class GameRoom(object):
         self.did_send_win_message = False
         self.did_complete_game = False
         self.did_room_start = False
+        self.room_id = room_id
 
     def get_player_id(self, client):
         for player_id in self.player_id_to_client:
@@ -36,7 +37,7 @@ class GameRoom(object):
     def start_room(self):
         if not self.did_room_start:
             self.did_room_start = True
-            self.send_message("start_game")
+            self.send_message("start_game", {"room_id": self.room_id})
 
     @property
     def num_players(self):
@@ -47,7 +48,7 @@ class GameRoom(object):
         while self.player_id_to_client.has_key(player_id):
             player_id += 1
         self.player_id_to_client[player_id] = client
-        self.send_message("connect", {"player_id": player_id}, client)
+        self.send_message("connect", {"player_id": player_id, "room_id": self.room_id}, client)
         self._broadcast_num_players_changed()
         if not self.did_room_start and self.num_players == MAX_PLAYERS_PER_ROOM:
             self.start_room()
@@ -62,7 +63,7 @@ class GameRoom(object):
             pass
 
     def _broadcast_num_players_changed(self):
-        self.send_message("num_players_changed", {"num_players": self.num_players})
+        self.send_message("num_players_changed", {"num_players": self.num_players, "room_id": self.room_id})
 
     def _handle_client_filled_edge(self, client, edge_id):
         if not self.is_in_level:
@@ -115,7 +116,7 @@ class GameRoom(object):
             self.current_level_index += 1
             self.pattern = self.patterns[self.current_level_index]
             self.last_edge_fill_times = [0] * len(self.pattern.edges)
-            self.send_message("start_level", {"pattern": self.pattern.to_primitive()})
+            self.send_message("start_level", {"pattern": self.pattern.to_primitive(), "room_id": self.room_id})
             self.level_start_time = time()
 
     @property

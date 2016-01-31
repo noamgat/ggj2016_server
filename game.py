@@ -49,13 +49,16 @@ class GameBackend(object):
         """:type GameRoom"""
         self.game_rooms = []
         self.clients_to_rooms = {}
+        self.next_room_id = 0
 
     def register(self, client):
         """Register a WebSocket connection for the game."""
         if self.pickup_game_room is None or self.pickup_game_room.did_room_start:
             app.logger.info("Creating new room")
+            self.next_room_id += 1
+            print "Creating new room", self.next_room_id
             patterns = [load_level(fn) for fn in get_level_names()]
-            self.pickup_game_room = GameRoom(patterns, 2, self.send)
+            self.pickup_game_room = GameRoom(patterns, 2, self.send, room_id=self.next_room_id)
             self.game_rooms.append(self.pickup_game_room)
         self.pickup_game_room.add_player(client)
         self.clients_to_rooms[client] = self.pickup_game_room
