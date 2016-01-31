@@ -38,6 +38,7 @@ class GameRoom(object):
         if not self.did_room_start:
             self.did_room_start = True
             self.send_message("start_game", {"room_id": self.room_id})
+            print "Starting room", self.room_id
 
     @property
     def num_players(self):
@@ -119,6 +120,7 @@ class GameRoom(object):
             self.pattern = self.patterns[self.current_level_index]
             self.last_edge_fill_times = [0] * len(self.pattern.edges)
             self.send_message("start_level", {"pattern": self.pattern.to_primitive(), "room_id": self.room_id})
+            print "Room", self.room_id, "starting level", self.current_level_index
             self.level_start_time = time()
 
     @property
